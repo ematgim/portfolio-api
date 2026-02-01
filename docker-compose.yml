@@ -1,8 +1,24 @@
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: portfolio-api
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - USE_OLLAMA=true
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=ai/llama3.2:latest
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
   ollama:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.model
     container_name: portfolio-ollama
     ports:
       - "11434:11434"

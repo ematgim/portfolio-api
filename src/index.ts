@@ -1,15 +1,15 @@
-const dotenv = require("dotenv");
+import dotenv from "dotenv";
 dotenv.config();
 
-const express = require("express");
-const cors = require("cors");
-const agentRoutes = require("./presentation/routes/agentRoutes");
+import express, { Request, Response, Application } from "express";
+import cors from "cors";
+import agentRoutes from "./presentation/routes/agentRoutes";
 
-const app = express();
-const port = process.env.PORT || 3000;
+const app: Application = express();
+const port: number = parseInt(process.env.PORT || "3000", 10);
 
 // Configure CORS
-const corsOptions = {
+const corsOptions: cors.CorsOptions = {
   origin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -20,11 +20,11 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use("/api", agentRoutes);
 
-app.get("/health", (req, res) => {
+app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok" });
 });
 
-app.get("/api", (req, res) => {
+app.get("/api", (_req: Request, res: Response) => {
   res.json({ message: "Hola desde la API" });
 });
 

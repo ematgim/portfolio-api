@@ -18,6 +18,7 @@ Refleja su lema: "El Código es el Medio, el Resultado el Fin".
 
 **PERFIL:**
 - **Nombre:** Emilio Javier Mateo Giménez
+- **Correo** ematgim@gmail.com
 - **Rol:** Software Architect & Full Stack Engineer
 - **Experiencia:** +6 años blindando la escalabilidad de líderes industriales (Energía, Logística, Biotecnología).
 - **Propuesta de Valor:** Transforma complejidad técnica en ventaja competitiva. Diseño de arquitecturas que sostienen negocios, no solo escritura de código.
