@@ -13,30 +13,58 @@ export interface ApplicationDependencies {
 /**
  * Factory para inicializar las dependencias de la aplicación
  * basadas en variables de entorno
+ * 
+ * Patrón: Singleton con inicialización lazy/explicit
  */
 export class DependencyContainer {
   private static instance: ApplicationDependencies | null = null;
+  private static isInitializing: boolean = false;
 
   static getInstance(): ApplicationDependencies {
     if (!this.instance) {
-      throw new Error("DependencyContainer no ha sido inicializado. Llama a initialize() primero.");
+      throw new Error(
+        "DependencyContainer no ha sido inicializado. Llama a initialize() primero."
+      );
     }
     return this.instance;
   }
 
+  static isInitialized(): boolean {
+    return this.instance !== null;
+  }
+
   static initialize(): ApplicationDependencies {
-    // Inicializar cliente LLM
-    const llmClient = this.initializeLlmClient();
+    // Evitar inicialización duplicada
+    if (this.instance !== null) {
+      console.log("⚠️  DependencyContainer ya inicializado, retornando instancia existente");
+      return this.instance;
+    }
 
-    // Inicializar repositorio de conversaciones
-    const conversationRepository = new MongoConversationRepository();
+    if (this.isInitializing) {
+      throw new Error(
+        "DependencyContainer está siendo inicializado en otro lugar. Espera a que termine."
+      );
+    }
 
-    this.instance = {
-      llmClient,
-      conversationRepository
-    };
+    this.isInitializing = true;
 
-    return this.instance;
+    try {
+      // Inicializar cliente LLM
+      const llmClient = this.initializeLlmClient();
+
+      // Inicializar repositorio de conversaciones
+      const conversationRepository = new MongoConversationRepository();
+
+      this.instance = {
+        llmClient,
+        conversationRepository
+      };
+
+      console.log("✓ DependencyContainer inicializado");
+      return this.instance;
+    } finally {
+      this.isInitializing = false;
+    }
   }
 
   private static initializeLlmClient(): LlmClient {
@@ -66,5 +94,6 @@ export class DependencyContainer {
 
   static reset(): void {
     this.instance = null;
+    this.isInitializing = false;
   }
 }

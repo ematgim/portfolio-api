@@ -27,7 +27,7 @@ const MessageSchema = new Schema<IMessage>({
     type: Date,
     default: Date.now
   }
-});
+}, { _id: false });
 
 const ConversationSchema = new Schema<IConversation>({
   conversationId: {
@@ -36,7 +36,10 @@ const ConversationSchema = new Schema<IConversation>({
     unique: true,
     index: true
   },
-  messages: [MessageSchema]
+  messages: {
+    type: [MessageSchema],
+    default: []
+  }
 }, {
   timestamps: true
 });

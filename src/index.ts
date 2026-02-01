@@ -3,9 +3,9 @@ dotenv.config();
 
 import express, { Request, Response, Application } from "express";
 import cors from "cors";
-import agentRoutes from "./presentation/routes/agentRoutes";
 import { mongoConnection } from "./infrastructure/database/mongoConnection";
 import { DependencyContainer } from "./infrastructure/di/dependencyContainer";
+import { createAgentRoutes } from "./presentation/routes/agentRoutes";
 
 const app: Application = express();
 const port: number = parseInt(process.env.PORT || "3000", 10);
@@ -20,7 +20,6 @@ const corsOptions: cors.CorsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
-app.use("/api", agentRoutes);
 
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok" });
@@ -33,19 +32,24 @@ app.get("/api", (_req: Request, res: Response) => {
 // Conectar a MongoDB antes de iniciar el servidor
 async function startServer() {
   try {
-    // Inicializar dependencias
+    // Inicializar dependencias PRIMERO
     DependencyContainer.initialize();
-    console.log("Dependencias inicializadas");
+    console.log("✓ Dependencias inicializadas");
+
+    // Crear y montar rutas DESPUÉS
+    const agentRoutes = createAgentRoutes();
+    app.use("/api", agentRoutes);
+    console.log("✓ Rutas configuradas");
 
     // Conectar a MongoDB
     await mongoConnection.connect();
-    console.log("Conectado a MongoDB");
+    console.log("✓ Conectado a MongoDB");
     
     app.listen(port, () => {
-      console.log(`API listening on port ${port}`);
+      console.log(`✓ API listening on port ${port}`);
     });
   } catch (error) {
-    console.error("Error al iniciar el servidor:", error);
+    console.error("✗ Error al iniciar el servidor:", error);
     process.exit(1);
   }
 }
@@ -56,14 +60,6 @@ process.on('SIGTERM', async () => {
   await mongoConnection.disconnect();
   process.exit(0);
 });
-
-process.on('SIGINT', async () => {
-  console.log('SIGINT recibido, cerrando conexiones...');
-  await mongoConnection.disconnect();
-  process.exit(0);
-});
-
-startServer();
 
 process.on('SIGINT', async () => {
   console.log('SIGINT recibido, cerrando conexiones...');
