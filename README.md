@@ -1,137 +1,117 @@
 # Portfolio API
 
-API básica en Express con agente conversacional usando Ollama, Qwen2.5 y MongoDB para persistencia.
+Conversational portfolio API built with Express + TypeScript, streaming responses from an LLM provider and persisting chat history in MongoDB.
 
-## Configuración Rápida
+## Highlights
 
-### 1. Levantar servicios con Docker
+- **Streaming chat (SSE)** for fast, incremental responses
+- **MongoDB persistence** for conversation history and TTL cleanup
+- **Pluggable LLM providers**: Ollama (local), Cloudflare Workers AI, or a placeholder client
+- **Docker-first** setup for API + Ollama + MongoDB
+
+## Quick start (Docker)
+
+1. Start the stack:
 
 ```bash
 docker-compose up -d
 ```
 
-El docker-compose levanta automáticamente:
-- **API**: El servidor Express en el puerto 3000
-- **Ollama**: El servidor LLM en el puerto 11434
-- **MongoDB**: La base de datos en el puerto 27017
+This brings up:
+- **API** on port 3000
+- **Ollama** on port 11434
+- **MongoDB** on port 27017
 
-El contenedor de Ollama automáticamente:
-- Descarga el modelo base `qwen2.5:7b` si no existe
-- Crea el modelo personalizado `ematgim-assistant` con el prompt de [PROMPT.md](PROMPT.md)
+The Ollama container runs [scripts/init-ollama.sh](scripts/init-ollama.sh), which:
+- Pulls the base model `llama3.2`
+- Creates the custom model `ematgim-assistant` using [Modelfile](Modelfile)
 
-Puedes ver el progreso con:
+Watch progress with:
+
 ```bash
 docker logs -f portfolio-ollama
 ```
 
-### 2. Configurar variables de entorno
+## Local development
 
-Copia `.env.example` a `.env`:
+1. Copy environment variables:
 
 ```bash
 cp .env.example .env
 ```
 
-### 3. Iniciar la API (desarrollo local)
+2. Install and run:
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Persistencia con MongoDB
+## Environment variables
 
-La API ahora guarda el historial de cada conversación en MongoDB. Características:
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `PORT` | API port | `3000` |
+| `CLIENT_ORIGIN` | CORS origin | `http://localhost:5173` |
+| `MONGODB_URI` | Mongo connection string | `mongodb://mongo:27017/portfolio-chat` |
+| `USE_OLLAMA` | Use Ollama provider | `false` |
+| `OLLAMA_BASE_URL` | Ollama base URL | `http://localhost:11434` |
+| `OLLAMA_MODEL` | Ollama model | `ai/llama3.2:latest` |
+| `USE_CLOUDFLARE` | Use Cloudflare provider | `false` |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id | — |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token | — |
+| `CLOUDFLARE_MODEL` | Cloudflare model | `@cf/meta/llama-3-8b-instruct` |
 
-- **Persistencia**: Los chats se mantienen entre reinicios
-- **Límite de mensajes**: Se mantienen los últimos 20 mensajes por conversación
-- **TTL**: Las conversaciones se eliminan automáticamente después de 30 días de inactividad
-- **Identificación**: Cada chat se identifica con un `conversationId` único
+If neither `USE_OLLAMA` nor `USE_CLOUDFLARE` is set to `true`, the placeholder LLM client is used.
 
-### Estructura de datos
+## API endpoints
 
-Cada conversación se guarda con:
-- `conversationId`: Identificador único
-- `messages`: Array de mensajes (role, content, timestamp)
-- `createdAt` y `updatedAt`: Timestamps automáticos
+- `GET /health` — health check
+- `GET /api` — basic info
+- `POST /api/agent/stream` — chat stream (Server-Sent Events)
+- `GET /api/agent/history/:conversationId` — fetch conversation history
+- `DELETE /api/agent/history/:conversationId` — clear conversation history
 
+## Conversation persistence
 
-## Scripts
+Conversation history is stored in MongoDB with:
+- **Retention:** last 20 messages per conversation
+- **TTL:** auto-delete after 30 days of inactivity
+- **Identity:** each chat is keyed by `conversationId`
 
-- `npm run dev` - Inicia el servidor en modo desarrollo
-- `npm start` - Inicia el servidor en modo producción
-- `./scripts/setup-model.sh` - (Opcional) Configurar modelo manualmente desde el host
+## Customization
 
-## Endpoints
+### Update the system prompt
 
-- `GET /health` - Health check
-- `GET /api` - Info básica
-- `POST /api/agent/stream` - Chat con el agente (Server-Sent Events)
+Edit [PROMPT.md](PROMPT.md). The LLM client loads this file at runtime.
 
-## Estructura
+### Switch the base model
+
+Update the `FROM` line in [Modelfile](Modelfile), then rebuild the model:
+
+```bash
+docker exec portfolio-ollama ollama create ematgim-assistant -f /root/Modelfile
+```
+
+You can also override the model name with `OLLAMA_MODEL`.
+
+## Project structure
 
 ```
 src/
-├── application/usecases/     # Lógica de negocio
+├── application/usecases/     # Business logic
 ├── domain/ports/             # Interfaces
-├── infrastructure/           # Implementaciones
-│   ├── cv/                   # Repositorio de CV
-│   └── llm/                  # Clientes LLM
-└── presentation/             # API REST
+├── infrastructure/           # DB + LLM implementations
+│   ├── database/             # MongoDB connection + repositories
+│   ├── di/                   # Dependency container
+│   └── llm/                  # LLM clients
+└── presentation/             # REST API controllers + routes
 ```
 
-## Personalización
+## Scripts
 
-### Modificar el CV
-
-Edita [src/infrastructure/cv/cvProfile.json](src/infrastructure/cv/cvProfile.json) con tu información.
-
-### Modificar el prompt del agente
-
-Edita [PROMPT.md](PROMPT.md) y recrea el modelo:
-
-```bash
-docker exec portfolio-ollama ollama create ematgim-assistant -f /tmp/Modelfile
-```
-
-### Usar otro modelo
-
-Cambia `FROM qwen2.5:7b` en [Modelfile](Modelfile) y ejecuta `./scripts/setup-model.sh`.
-
-## Configuración
-
-Variables de entorno en `.env`:
-
-```env
-PORT=3000
-CLIENT_ORIGIN=http://localhost:5173
-
-# MongoDB
-MONGODB_URI=mongodb://mongo:27017/portfolio-chat
-
-# Usar Ollama (local)
-USE_OLLAMA=true
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=ematgim-assistant
-
-# Usar Cloudflare Workers AI
-USE_CLOUDFLARE=false
-CLOUDFLARE_ACCOUNT_ID=your_account_id
-CLOUDFLARE_API_TOKEN=your_api_token
-CLOUDFLARE_MODEL=@cf/meta/llama-3-8b-instruct
-```
-
-### Proveedores LLM Soportados
-
-La API soporta múltiples proveedores de modelos:
-
-1. **Ollama (local)** - Por defecto
-   - Configura `USE_OLLAMA=true`
-   - Requiere Ollama corriendo localmente o en Docker
-
-2. **Cloudflare Workers AI**
-   - Configura `USE_CLOUDFLARE=true` 
-   - Requiere cuenta de Cloudflare y API token
-   - Modelos disponibles: `@cf/meta/llama-3-8b-instruct`, etc.
-
-3. **Placeholder** - Modo de prueba sin LLM real
+- `npm run dev` — start in development mode
+- `npm run dev:watch` — start with auto-reload
+- `npm run build` — compile TypeScript
+- `npm start` — run compiled server
+- `npm test` — run tests
