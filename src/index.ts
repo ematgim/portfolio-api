@@ -5,6 +5,7 @@ import express, { Request, Response, Application } from "express";
 import cors from "cors";
 import agentRoutes from "./presentation/routes/agentRoutes";
 import { mongoConnection } from "./infrastructure/database/mongoConnection";
+import { DependencyContainer } from "./infrastructure/di/dependencyContainer";
 
 const app: Application = express();
 const port: number = parseInt(process.env.PORT || "3000", 10);
@@ -32,7 +33,13 @@ app.get("/api", (_req: Request, res: Response) => {
 // Conectar a MongoDB antes de iniciar el servidor
 async function startServer() {
   try {
+    // Inicializar dependencias
+    DependencyContainer.initialize();
+    console.log("Dependencias inicializadas");
+
+    // Conectar a MongoDB
     await mongoConnection.connect();
+    console.log("Conectado a MongoDB");
     
     app.listen(port, () => {
       console.log(`API listening on port ${port}`);
@@ -49,6 +56,14 @@ process.on('SIGTERM', async () => {
   await mongoConnection.disconnect();
   process.exit(0);
 });
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT recibido, cerrando conexiones...');
+  await mongoConnection.disconnect();
+  process.exit(0);
+});
+
+startServer();
 
 process.on('SIGINT', async () => {
   console.log('SIGINT recibido, cerrando conexiones...');

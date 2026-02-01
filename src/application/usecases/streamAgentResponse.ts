@@ -1,5 +1,5 @@
 import { LlmClient } from "../../domain/ports/llmClient";
-import { ConversationHistoryService } from "../../domain/services/conversationHistoryService";
+import { IConversationRepository } from "../../domain/ports/conversationRepository";
 
 interface StreamAgentResponseParams {
   prompt: string;
@@ -9,10 +9,13 @@ interface StreamAgentResponseParams {
 
 interface Dependencies {
   llmClient: LlmClient;
-  conversationHistory?: ConversationHistoryService;
+  conversationRepository?: IConversationRepository;
 }
 
-export const createStreamAgentResponse = ({ llmClient, conversationHistory }: Dependencies) => {
+export const createStreamAgentResponse = ({ 
+  llmClient, 
+  conversationRepository 
+}: Dependencies) => {
   return async function* streamAgentResponse({ 
     prompt, 
     context, 
@@ -23,8 +26,8 @@ export const createStreamAgentResponse = ({ llmClient, conversationHistory }: De
     }
     
     // Get conversation history if conversationId is provided
-    const history = conversationId && conversationHistory 
-      ? await conversationHistory.getFormattedHistory(conversationId)
+    const history = conversationId && conversationRepository 
+      ? await conversationRepository.getFormattedHistory(conversationId)
       : [];
 
     const mergedContext = {
@@ -33,8 +36,8 @@ export const createStreamAgentResponse = ({ llmClient, conversationHistory }: De
     };
 
     // Add user message to history
-    if (conversationId && conversationHistory) {
-      await conversationHistory.addMessage(conversationId, "user", prompt);
+    if (conversationId && conversationRepository) {
+      await conversationRepository.addMessage(conversationId, "user", prompt);
     }
 
     let fullResponse = "";
@@ -45,8 +48,8 @@ export const createStreamAgentResponse = ({ llmClient, conversationHistory }: De
     }
 
     // Add assistant response to history
-    if (conversationId && conversationHistory && fullResponse) {
-      await conversationHistory.addMessage(conversationId, "assistant", fullResponse);
+    if (conversationId && conversationRepository && fullResponse) {
+      await conversationRepository.addMessage(conversationId, "assistant", fullResponse);
     }
   };
 };

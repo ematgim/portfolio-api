@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { ConversationHistoryService } from "../../domain/services/conversationHistoryService";
+import { IConversationRepository } from "../../domain/ports/conversationRepository";
 
 interface StreamAgentResponseFunction {
   (params: { prompt: string; context?: any; conversationId?: string }): AsyncGenerator<any, void, unknown>;
@@ -7,16 +7,19 @@ interface StreamAgentResponseFunction {
 
 interface Dependencies {
   streamAgentResponse: StreamAgentResponseFunction;
-  conversationHistory?: ConversationHistoryService;
+  conversationRepository?: IConversationRepository;
 }
 
 interface AgentController {
   stream: (req: Request, res: Response) => Promise<void>;
-  getHistory: (req: Request, res: Response) => void;
-  clearHistory: (req: Request, res: Response) => void;
+  getHistory: (req: Request, res: Response) => Promise<void>;
+  clearHistory: (req: Request, res: Response) => Promise<void>;
 }
 
-export const createAgentController = ({ streamAgentResponse, conversationHistory }: Dependencies): AgentController => {
+export const createAgentController = ({ 
+  streamAgentResponse, 
+  conversationRepository 
+}: Dependencies): AgentController => {
   const stream = async (req: Request, res: Response): Promise<void> => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -25,6 +28,14 @@ export const createAgentController = ({ streamAgentResponse, conversationHistory
     const { prompt, context, conversationId } = req.body || {};
 
     try {
+      // Validar entrada
+      if (!prompt) {
+        if (!res.headersSent) {
+          res.status(400).json({ error: "Prompt es requerido" });
+        }
+        return;
+      }
+
       res.write("event: meta\n");
       res.write(`data: ${JSON.stringify({ streaming: true, conversationId })}\n\n`);
 
@@ -50,37 +61,57 @@ export const createAgentController = ({ streamAgentResponse, conversationHistory
     }
   };
 
-  const getHistory = (req: Request, res: Response): void => {
-    const conversationId = req.params.conversationId as string;
+  const getHistory = async (req: Request, res: Response): Promise<void> => {
+    const conversationId = Array.isArray(req.params.conversationId) 
+      ? req.params.conversationId[0]
+      : req.params.conversationId;
     
-    if (!conversationId || !conversationHistory) {
-      res.status(400).json({ error: "conversationId requerido" });
-      return;
-    }
-
     try {
-      const summary = conversationHistory.getSummary(conversationId);
+      if (!conversationId) {
+        res.status(400).json({ error: "conversationId requerido" });
+        return;
+      }
+
+      if (!conversationRepository) {
+        res.status(500).json({ error: "Repositorio no disponible" });
+        return;
+      }
+
+      const summary = await conversationRepository.getSummary(conversationId);
+      
+      if (!summary) {
+        res.status(404).json({ error: "Conversación no encontrada" });
+        return;
+      }
+
       res.json(summary);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Error desconocido";
-      res.status(400).json({ error: errorMessage });
+      res.status(500).json({ error: errorMessage });
     }
   };
 
-  const clearHistory = (req: Request, res: Response): void => {
-    const conversationId = req.params.conversationId as string;
+  const clearHistory = async (req: Request, res: Response): Promise<void> => {
+    const conversationId = Array.isArray(req.params.conversationId) 
+      ? req.params.conversationId[0]
+      : req.params.conversationId;
     
-    if (!conversationId || !conversationHistory) {
-      res.status(400).json({ error: "conversationId requerido" });
-      return;
-    }
-
     try {
-      conversationHistory.clearHistory(conversationId);
+      if (!conversationId) {
+        res.status(400).json({ error: "conversationId requerido" });
+        return;
+      }
+
+      if (!conversationRepository) {
+        res.status(500).json({ error: "Repositorio no disponible" });
+        return;
+      }
+
+      await conversationRepository.clearHistory(conversationId);
       res.json({ message: "Historial eliminado", conversationId });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Error desconocido";
-      res.status(400).json({ error: errorMessage });
+      res.status(500).json({ error: errorMessage });
     }
   };
 
