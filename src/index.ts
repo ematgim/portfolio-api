@@ -11,8 +11,16 @@ const app: Application = express();
 const port: number = parseInt(process.env.PORT || "3000", 10);
 
 // Configure CORS
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.CLIENT_ORIGIN || "http://localhost:5173").split(",").map(o => o.trim());
+
 const corsOptions: cors.CorsOptions = {
-  origin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
