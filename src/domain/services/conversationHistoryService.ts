@@ -1,3 +1,5 @@
+import { ConversationModel } from '../../infrastructure/database/conversationModel';
+
 export interface Message {
   role: string;
   content: string;
@@ -11,15 +13,14 @@ export interface ConversationSummary {
 }
 
 /**
- * Service to manage conversation history
+ * Service to manage conversation history with MongoDB persistence
  * Stores and retrieves chat messages for maintaining context
  */
 export class ConversationHistoryService {
-  private conversations: Map<string, Message[]>;
+  private maxMessages: number;
 
-  constructor() {
-    // In-memory storage: conversationId -> messages array
-    this.conversations = new Map();
+  constructor(maxMessages: number = 20) {
+    this.maxMessages = maxMessages;
   }
 
   /**
@@ -28,25 +29,42 @@ export class ConversationHistoryService {
    * @param role - "user" or "assistant"
    * @param content - Message content
    */
-  addMessage(conversationId: string, role: string, content: string): void {
+  async addMessage(conversationId: string, role: string, content: string): Promise<void> {
     if (!conversationId) {
       throw new Error("conversationId requerido");
     }
 
-    if (!this.conversations.has(conversationId)) {
-      this.conversations.set(conversationId, []);
-    }
+    try {
+      const conversation = await ConversationModel.findOne({ conversationId });
 
-    const messages = this.conversations.get(conversationId)!;
-    messages.push({
-      role,
-      content,
-      timestamp: new Date().toISOString()
-    });
+      if (conversation) {
+        // Añadir el mensaje al array existente
+        conversation.messages.push({
+          role,
+          content,
+          timestamp: new Date()
+        });
 
-    // Limit history to last 20 messages to avoid token limits
-    if (messages.length > 20) {
-      messages.shift();
+        // Limitar el historial a los últimos N mensajes
+        if (conversation.messages.length > this.maxMessages) {
+          conversation.messages = conversation.messages.slice(-this.maxMessages);
+        }
+
+        await conversation.save();
+      } else {
+        // Crear nueva conversación
+        await ConversationModel.create({
+          conversationId,
+          messages: [{
+            role,
+            content,
+            timestamp: new Date()
+          }]
+        });
+      }
+    } catch (error) {
+      console.error('Error al añadir mensaje:', error);
+      throw error;
     }
   }
 
@@ -55,11 +73,27 @@ export class ConversationHistoryService {
    * @param conversationId
    * @returns Array of messages
    */
-  getHistory(conversationId: string): Message[] {
+  async getHistory(conversationId: string): Promise<Message[]> {
     if (!conversationId) {
       return [];
     }
-    return this.conversations.get(conversationId) || [];
+
+    try {
+      const conversation = await ConversationModel.findOne({ conversationId });
+      
+      if (!conversation) {
+        return [];
+      }
+
+      return conversation.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.timestamp.toISOString()
+      }));
+    } catch (error) {
+      console.error('Error al obtener historial:', error);
+      return [];
+    }
   }
 
   /**
@@ -67,8 +101,8 @@ export class ConversationHistoryService {
    * @param conversationId
    * @returns Formatted messages for LLM
    */
-  getFormattedHistory(conversationId: string): Array<{ role: string; content: string }> {
-    const history = this.getHistory(conversationId);
+  async getFormattedHistory(conversationId: string): Promise<Array<{ role: string; content: string }>> {
+    const history = await this.getHistory(conversationId);
     return history.map(msg => ({
       role: msg.role,
       content: msg.content
@@ -79,8 +113,13 @@ export class ConversationHistoryService {
    * Clear conversation history
    * @param conversationId
    */
-  clearHistory(conversationId: string): void {
-    this.conversations.delete(conversationId);
+  async clearHistory(conversationId: string): Promise<void> {
+    try {
+      await ConversationModel.deleteOne({ conversationId });
+    } catch (error) {
+      console.error('Error al limpiar historial:', error);
+      throw error;
+    }
   }
 
   /**
@@ -88,8 +127,8 @@ export class ConversationHistoryService {
    * @param conversationId
    * @returns Summary info
    */
-  getSummary(conversationId: string): ConversationSummary {
-    const history = this.getHistory(conversationId);
+  async getSummary(conversationId: string): Promise<ConversationSummary> {
+    const history = await this.getHistory(conversationId);
     return {
       conversationId,
       messageCount: history.length,

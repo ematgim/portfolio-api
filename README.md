@@ -1,22 +1,27 @@
 # Portfolio API
 
-API básica en Express con agente conversacional usando Ollama y Qwen2.5.
+API básica en Express con agente conversacional usando Ollama, Qwen2.5 y MongoDB para persistencia.
 
 ## Configuración Rápida
 
-### 1. Levantar Ollama con Docker
+### 1. Levantar servicios con Docker
 
 ```bash
 docker-compose up -d
 ```
 
-El contenedor automáticamente:
+El docker-compose levanta automáticamente:
+- **API**: El servidor Express en el puerto 3000
+- **Ollama**: El servidor LLM en el puerto 11434
+- **MongoDB**: La base de datos en el puerto 27017
+
+El contenedor de Ollama automáticamente:
 - Descarga el modelo base `qwen2.5:7b` si no existe
 - Crea el modelo personalizado `ematgim-assistant` con el prompt de [PROMPT.md](PROMPT.md)
 
 Puedes ver el progreso con:
 ```bash
-docker logs -f portfolio-model-setup
+docker logs -f portfolio-ollama
 ```
 
 ### 2. Configurar variables de entorno
@@ -27,12 +32,29 @@ Copia `.env.example` a `.env`:
 cp .env.example .env
 ```
 
-### 3. Iniciar la API
+### 3. Iniciar la API (desarrollo local)
 
 ```bash
 npm install
 npm run dev
 ```
+
+## Persistencia con MongoDB
+
+La API ahora guarda el historial de cada conversación en MongoDB. Características:
+
+- **Persistencia**: Los chats se mantienen entre reinicios
+- **Límite de mensajes**: Se mantienen los últimos 20 mensajes por conversación
+- **TTL**: Las conversaciones se eliminan automáticamente después de 30 días de inactividad
+- **Identificación**: Cada chat se identifica con un `conversationId` único
+
+### Estructura de datos
+
+Cada conversación se guarda con:
+- `conversationId`: Identificador único
+- `messages`: Array de mensajes (role, content, timestamp)
+- `createdAt` y `updatedAt`: Timestamps automáticos
+
 
 ## Scripts
 
@@ -82,6 +104,10 @@ Variables de entorno en `.env`:
 
 ```env
 PORT=3000
+CLIENT_ORIGIN=http://localhost:5173
+
+# MongoDB
+MONGODB_URI=mongodb://mongo:27017/portfolio-chat
 
 # Usar Ollama (local)
 USE_OLLAMA=true

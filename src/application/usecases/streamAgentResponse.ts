@@ -24,7 +24,7 @@ export const createStreamAgentResponse = ({ llmClient, conversationHistory }: De
     
     // Get conversation history if conversationId is provided
     const history = conversationId && conversationHistory 
-      ? conversationHistory.getFormattedHistory(conversationId)
+      ? await conversationHistory.getFormattedHistory(conversationId)
       : [];
 
     const mergedContext = {
@@ -34,7 +34,7 @@ export const createStreamAgentResponse = ({ llmClient, conversationHistory }: De
 
     // Add user message to history
     if (conversationId && conversationHistory) {
-      conversationHistory.addMessage(conversationId, "user", prompt);
+      await conversationHistory.addMessage(conversationId, "user", prompt);
     }
 
     let fullResponse = "";
@@ -46,7 +46,7 @@ export const createStreamAgentResponse = ({ llmClient, conversationHistory }: De
 
     // Add assistant response to history
     if (conversationId && conversationHistory && fullResponse) {
-      conversationHistory.addMessage(conversationId, "assistant", fullResponse);
+      await conversationHistory.addMessage(conversationId, "assistant", fullResponse);
     }
   };
 };
